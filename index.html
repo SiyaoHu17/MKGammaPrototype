@@ -38,15 +38,15 @@
 <div class="clr"></div>
 </div>
 
-
-<div id="note" style="top: 300px; color: rgb(255, 255, 255);">The simulation kicks in, based on data from the American Time Use Survey.</div>
+<!-- siyao  -->
+<div id="note" style="top: 200px; color: rgb(255, 255, 255);"></div>
 <div id="cite">
 <!-- siyao  -->
 This is a simulation of Private Banking clients's product openning journey overtime (01/01/2019 to 04/14/2020) . The clients we have chosen to visualize are who have become clients after 2019-01-01. There are 1085 clients in this simulation. (Some business logics are used for clients who opened more than one accounts on the same date)
 </div>
 </div>
 <!-- siyao -->
-<div id="chart"><svg width="380" height="0"><div class="clr"></div> 
+<div id="chart"><div class="clr"></div> 
 </div>
 <script src="./supports/d3-3-5-5.min.js.download"></script>
 <script>
@@ -291,7 +291,7 @@ d3.tsv("data/data_viz_0724.tsv", function(error, data) {
 				
 				d3.select("#note").transition()
 					.duration(1000)
-					.style("top", "300px")
+					.style("top", "200px")
 					.style("color", "#ffffff");
 					
 				notes_index += 1;
