@@ -1,0 +1,461 @@
+<!DOCTYPE html>
+<!-- saved from url=(0056)http://flowingdata.com/projects/2015/timeuse-simulation/ -->
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+</div>
+<!-- siyao  -->
+<title>Prroduct Sequence Simulation</title>
+<link rel="stylesheet" href="./supports/style.css" type="text/css" media="screen">
+<link rel="stylesheet" type="text/css" href="./supports/fonts.css">
+<link href="./supports/css" rel="stylesheet" type="text/css">
+<style>
+
+.node {
+  stroke-width: 1.5px;
+}
+
+</style></head>
+
+
+<body>
+<div id="main-wrapper">
+<div id="sidebar">
+<!-- siyao  -->
+<div id="current_time">-1</div>
+<div id="current_time_note">
+  <p style="text-align:center;">Days after</p>
+</div>
+<!-- siyao  -->
+<div id = "controls" style="text-align:center;">
+	<input type="image" src="img/reset.png" name="reset" class="button" id = "reset" />
+	<input type="image" src="img/play.png" name="play" class="button" style="display: initial" id = "play" />
+	<input type="image" src="img/pause.png" name="pause" class="button" style="display: none" id = "pause" />
+</div>
+
+<div id="speed">
+<div class="togglebutton slow current" data-val="slow">Slow</div>
+<div class="togglebutton medium" data-val="medium">Medium</div>
+<div class="togglebutton fast" data-val="fast">Fast</div>
+<div class="clr"></div>
+</div>
+
+
+<div id="note" style="top: 300px; color: rgb(255, 255, 255);">The simulation kicks in, based on data from the American Time Use Survey.</div>
+<div id="cite">
+<!-- siyao  -->
+This is a simulation of Private Banking clients's product openning journey overtime (01/01/2019 to 04/14/2020) . The clients we have chosen to visualize are who have become clients after 2019-01-01. There are 1085 clients in this simulation. (Some business logics are used for clients who opened more than one accounts on the same date)
+</div>
+</div>
+<!-- siyao -->
+<div id="chart"><svg width="380" height="0"><div class="clr"></div> 
+</div>
+<script src="./supports/d3-3-5-5.min.js.download"></script>
+<script>
+var USER_SPEED = "slow";
+<!-- siyao  -->
+var pause = true;
+
+
+	
+var sched_objs = [],
+<!-- siyao  -->
+	max_minute = 469; //!!!need update days length+1
+//siyao 2020-04-14 00:00:00,2019-01-02 00:00:00,'468 days 00:00:00'
+var act_codes = [
+	{"index": "0", "short": "Checking", "desc": "Checking"},
+	{"index": "1", "short": "Interest Checking", "desc": "Interest Checking"},
+	{"index": "2", "short": "Savings", "desc": "Savings"},
+	{"index": "3", "short": "Money Market", "desc": "Money Market"},
+	{"index": "4", "short": "Certificate of Deposit", "desc": "Certificate of Deposit"},
+	{"index": "5", "short": "Loan", "desc": "Loan"},
+	{"index": "6", "short": "Residential Mortgage", "desc": "Residential Mortgage"},
+	{"index": "7", "short": "Lines of Credit", "desc": "Lines of Credit"},
+	{"index": "8", "short": "Overdraft", "desc": "Overdraft"},
+	{"index": "9", "short": "CC-NC-PB", "desc": "CC-NC-PB"},
+	{"index": "999", "short": "hold", "desc": "hold"},
+];
+
+
+var speeds = { "slow": 1000, "medium": 200, "fast": 50 };
+
+<!-- siyao  -->
+var time_notes = [
+	{ "start_minute": -1, "stop_minute": 1, "note": "105 (5.7%) clients open two accounts on the first date. Most of them open Interest Checking&Money Market together. The second popular combination is Checking&Money Market" },
+	{ "start_minute": 2, "stop_minute": 100, "note": "There are lots of movements from interest checking and checking to residuential morgage, and the movements are really fast." },
+	{ "start_minute": 101, "stop_minute": 180, "note": "There are lots of movements from Savings to Loan." },
+	{ "start_minute": 181, "stop_minute": 467, "note": "200 days after the first account open, the graph becomes pretty stable. There are little movements as time goes by." },
+	{ "start_minute": 468, "stop_minute": 999999, "note": "This is the end of the simulation. Please refresh to watch again." },
+
+];
+
+
+
+
+
+
+
+
+
+
+// Load data and let's do it.
+//siyao
+d3.tsv("data/data_viz_0724.tsv", function(error, data) {	
+	
+	data.forEach(function(d) {
+	//siyao
+		var day_array = d.id_duration.split(",");
+		var products = [];
+		for (var i=0; i < day_array.length; i++) {
+			// Duration
+			if (i % 2 == 1) {
+				products.push({'act': day_array[i-1], 'duration': +day_array[i]});
+			}
+		}
+		sched_objs.push(products);
+	});
+	
+    runVis();
+    function runVis () {
+		var width = 780,
+			height = 800,
+			padding = 1,
+			//siyao
+			maxRadius = 2;
+			// color = d3.scale.category10();
+		
+		var curr_minute = 0;
+		// Product to put in center of circle arrangement
+		//siyao
+		var center_act = "hold",
+			center_pt = { "x": 380, "y": 365 };
+
+		var notes_index = 0;
+		// Coordinates for products
+		var foci = {};
+		act_codes.forEach(function(code, i) {
+			if (code.desc == center_act) {
+				foci[code.index] = center_pt;
+			} else {
+				var theta = 2 * Math.PI / (act_codes.length-1);
+				foci[code.index] = {x: 250 * Math.cos(i * theta)+380, y: 250 * Math.sin(i * theta)+365 };
+			}
+		});
+
+		// Start the SVG
+		var svg = d3.select("#chart").append("svg")
+			.attr("width", width)
+			.attr("height", height);
+		// Used for product count by day
+		var act_counts = { "0": 0, "1": 0, "2": 0, "3": 0, "4": 0, "5": 0, "6": 0, "7": 0, "8": 0, "9": 0, "10": 0, "11": 0, "12": 0, "13": 0, "14": 0, "15": 0, "16": 0 };
+		
+		// A node for each person's schedule
+		var nodes = sched_objs.map(function(o,i) {
+			var act = o[0].act;
+			act_counts[act] += 1;
+			var init_x = foci[act].x + Math.random();
+			var init_y = foci[act].y + Math.random();
+			return {
+				act: act,
+				//siyao
+				radius: 2,
+				x: init_x,
+				y: init_y,
+				color: color(act),
+				moves: 0,
+				next_move_time: o[0].duration,
+				sched: o,
+			}
+		});
+
+		var force = d3.layout.force()
+			.nodes(nodes)
+			.size([width, height])
+			// .links([])
+			.gravity(0)
+			.charge(0)
+			.friction(.9)
+			.on("tick", tick)
+			.start();
+
+		var circle = svg.selectAll("circle")
+			.data(nodes)
+		  .enter().append("circle")
+			.attr("r", function(d) { return d.radius; })
+			.style("fill", function(d) { return d.color; });
+			// .call(force.drag);
+		
+		// Product labels
+		var label = svg.selectAll("text")
+			.data(act_codes)
+		  .enter().append("text")
+			.attr("class", "actlabel")
+			.attr("x", function(d, i) {
+				if (d.desc == center_act) {
+				//siyao
+					return ;
+				} else {
+					var theta = 2 * Math.PI / (act_codes.length-1);
+					return 340 * Math.cos(i * theta)+380;
+				}
+				
+			})
+			.attr("y", function(d, i) {
+				if (d.desc == center_act) {
+					return ;
+				} else {
+					var theta = 2 * Math.PI / (act_codes.length-1);
+					return 340 * Math.sin(i * theta)+365;
+				}
+				
+			});
+			
+		label.append("tspan")
+			.attr("x", function() { return d3.select(this.parentNode).attr("x"); })
+			// .attr("dy", "1.3em")
+			.attr("text-anchor", "middle")
+			.text(function(d) {
+				return d.short;
+			});
+		label.append("tspan")
+			.attr("dy", "1.3em")
+			.attr("x", function() { return d3.select(this.parentNode).attr("x"); })
+			.attr("text-anchor", "middle")
+			.attr("class", "actpct")
+			.text(function(d) {
+				return act_counts[d.index] ;//siyao
+			});
+			
+
+		// Update nodes based on product and duration
+		function timer() {
+			d3.range(nodes.length).map(function(i) {
+				var curr_node = nodes[i],
+					curr_moves = curr_node.moves; 
+
+				// Time to go to next activity
+				if (curr_node.next_move_time == curr_minute) {
+					if (curr_node.moves == curr_node.sched.length-1) {
+						curr_moves = 0;
+					} else {
+						curr_moves += 1;
+					}
+				
+					// Subtract from current activity count
+					act_counts[curr_node.act] -= 1;
+				
+					// Move on to next activity
+					curr_node.act = curr_node.sched[ curr_moves ].act;
+				
+					// Add to new activity count
+					act_counts[curr_node.act] += 1;
+				
+					curr_node.moves = curr_moves;
+					curr_node.cx = foci[curr_node.act].x;
+					curr_node.cy = foci[curr_node.act].y;
+				
+					nodes[i].next_move_time += nodes[i].sched[ curr_node.moves ].duration;
+				}
+
+			});
+
+			force.resume();
+			if (curr_minute<max_minute) {
+			curr_minute += 1}
+			;
+
+			// Update days
+			label.selectAll("tspan.actpct")
+				.text(function(d) {
+					return act_counts[d.index]
+					//siyao readablePercent(act_counts[d.index]);
+				});
+		
+			// Update time
+			//siyao
+			var true_minute = curr_minute-2 ;
+			d3.select("#current_time").text(true_minute);
+			
+			// Update notes
+			// var true_minute = curr_minute % 1440;
+			if (true_minute == time_notes[notes_index].start_minute) {
+				d3.select("#note")
+					.style("top", "0px")
+				  .transition()
+					.duration(600)
+					.style("top", "20px")
+					.style("color", "#000000")
+					.text(time_notes[notes_index].note);
+			} 
+			
+			// Make note disappear at the end.
+			else if (true_minute == time_notes[notes_index].stop_minute) {
+				
+				d3.select("#note").transition()
+					.duration(1000)
+					.style("top", "300px")
+					.style("color", "#ffffff");
+					
+				notes_index += 1;
+				if (notes_index == time_notes.length) {
+					notes_index = 0;
+				}
+			}
+			
+			<!-- siyao  -->
+			if (!pause) {
+				setTimeout(timer, speeds[USER_SPEED]);
+				}
+		}
+		setTimeout(timer, speeds[USER_SPEED]);
+		
+		
+		
+		//siyao
+			// Time Control
+		d3.select("#play").style("display", "initial").on("click", function () {
+			setTimeout(timer, speeds[USER_SPEED]);
+			pause = false;
+			d3.select("#play").style("display", "none");
+			d3.select("#pause").style("display", "initial");
+		});
+		d3.select("#pause").on("click", function () {
+			pause = true;
+			d3.select("#play").style("display", "initial");
+			d3.select("#pause").style("display", "none");
+		});
+		d3.select("#reset").style("display", "initial").on("click", reset);
+		
+		
+		
+		
+		
+		
+			
+		function tick(e) {
+		  var k = 0.04 * e.alpha;
+	  
+		  // Push nodes toward their designated focus.
+		  nodes.forEach(function(o, i) {
+			var curr_act = o.act;
+			
+			// Make sleep more sluggish moving.
+			if (curr_act == "0") {
+				var damper = 0.6;
+			} else {
+				var damper = 1;
+			}
+			o.color = color(curr_act);
+			o.y += (foci[curr_act].y - o.y) * k * damper;
+			o.x += (foci[curr_act].x - o.x) * k * damper;
+		  });
+
+		  circle
+			  .each(collide(.5))
+			  .style("fill", function(d) { return d.color; })
+			  .attr("cx", function(d) { return d.x; })
+			  .attr("cy", function(d) { return d.y; });
+		}
+
+
+		// Resolve collisions between nodes.
+		function collide(alpha) {
+		  var quadtree = d3.geom.quadtree(nodes);
+		  return function(d) {
+			var r = d.radius + maxRadius + padding,
+				nx1 = d.x - r,
+				nx2 = d.x + r,
+				ny1 = d.y - r,
+				ny2 = d.y + r;
+			quadtree.visit(function(quad, x1, y1, x2, y2) {
+			  if (quad.point && (quad.point !== d)) {
+				var x = d.x - quad.point.x,
+					y = d.y - quad.point.y,
+					l = Math.sqrt(x * x + y * y),
+					r = d.radius + quad.point.radius + (d.act !== quad.point.act) * padding;
+				if (l < r) {
+				  l = (l - r) / l * alpha;
+				  d.x -= x *= l;
+				  d.y -= y *= l;
+				  quad.point.x += x;
+				  quad.point.y += y;
+				}
+			  }
+			  return x1 > nx2 || x2 < nx1 || y1 > ny2 || y2 < ny1;
+			});
+		  };
+		}
+		
+		
+		
+		
+		// Speed toggle
+		d3.selectAll(".togglebutton")
+		  .on("click", function() {
+			if (d3.select(this).attr("data-val") == "slow") {
+				d3.select(".slow").classed("current", true);
+				d3.select(".medium").classed("current", false);
+				d3.select(".fast").classed("current", false);
+			} else if (d3.select(this).attr("data-val") == "medium") {
+				d3.select(".slow").classed("current", false);
+				d3.select(".medium").classed("current", true);
+				d3.select(".fast").classed("current", false);
+			} 
+			else {
+				d3.select(".slow").classed("current", false);
+				d3.select(".medium").classed("current", false);
+				d3.select(".fast").classed("current", true);
+			}
+			
+			USER_SPEED = d3.select(this).attr("data-val");
+		});
+		<!-- siyao  -->
+		function reset() {
+			if (! pause) {
+				d3.select("#play").style("display", "initial");
+				d3.select("#pause").style("display", "none");
+				pause = true;
+			}
+			d3.select("#current_time").html("-1");
+			d3.selectAll("svg").remove();
+			curr_minute = -1;
+			runVis();
+		}
+	}
+}); // @end d3.tsv
+
+
+
+function color(product) {
+//siyao	
+	var colorByActivity = {
+		"0": "#e0d400",
+		"1": "#1c8af9",
+		"2": "#51BC05",
+		"3": "#FF7F00",
+		"4": "#DB32A4",
+		"5": "#00CDF8",
+		"6": "#E63B60",
+		"7": "#8E5649",
+		"8": "#68c99e",
+		"9": "#a477c8",
+		"10": "#5C76EC",
+		"11": "#E773C3",
+		"12": "#799fd2",
+		"13": "#038a6c",
+		"14": "#cc87fa",
+		"15": "#ee8e76",
+		"999": "#bbbbbb",
+	}
+	
+	return colorByActivity[product];
+	
+}
+
+
+
+// siyao
+
+
+
+
+
+</script></body></html>
